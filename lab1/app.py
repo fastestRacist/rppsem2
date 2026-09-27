@@ -1,4 +1,3 @@
-"""Flask-приложение: сохраняет каждое обращение к /hello в БД."""
 import os
 from datetime import datetime
 

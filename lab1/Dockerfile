@@ -1,4 +1,3 @@
-# ---------- Стадия 1: установка зависимостей ----------
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
@@ -11,7 +10,6 @@ RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
 
-# ---------- Стадия 2: рантайм ----------
 FROM python:3.11-slim
 
 WORKDIR /app
