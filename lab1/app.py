@@ -25,8 +25,6 @@ db = SQLAlchemy(app)
 
 
 class Visit(db.Model):
-    """Запись об обращении клиента к приложению."""
-
     __tablename__ = "visits"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -37,14 +35,12 @@ class Visit(db.Model):
         return f"<Visit id={self.id} ip={self.ip_address} at={self.visited_at}>"
 
 
-# Создаём таблицу при старте приложения
 with app.app_context():
     db.create_all()
 
 
 @app.get("/hello")
 def hello():
-    """Сохраняет посещение и возвращает 'Hello' (200 OK)."""
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         ip_address = forwarded_for.split(",")[0].strip()
