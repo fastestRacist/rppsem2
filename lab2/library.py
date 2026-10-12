@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Protocol
 
 
+# Доменные исключения
 class DomainError(Exception):
     pass
 
@@ -20,12 +20,13 @@ class AggregateNotFound(DomainError):
     pass
 
 
-def _non_empty(value: str, name: str) -> None:
+# Вспомогательные проверки
+def _non_empty(value, name):
     if not isinstance(value, str) or not value.strip():
         raise InvalidValueObject(f"{name} не может быть пустым")
 
 
-def _non_negative_money(value, name: str) -> Decimal:
+def _non_negative_money(value, name):
     try:
         result = Decimal(str(value))
     except Exception as exc:
@@ -35,64 +36,109 @@ def _non_negative_money(value, name: str) -> Decimal:
     return result
 
 
+# База объектов-значений
+class _ValueObject:
+    __slots__ = ()
+
+    def _key(self):
+        return tuple(getattr(self, name) for name in self.__slots__)
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self._key() == other._key()
+
+    def __hash__(self):
+        return hash((type(self).__name__, self._key()))
+
+    def __repr__(self):
+        parts = ", ".join(
+            f"{name.lstrip('_')}={getattr(self, name)!r}"
+            for name in self.__slots__
+        )
+        return f"{type(self).__name__}({parts})"
+
+
 # Объекты-значения
-@dataclass(frozen=True)
-class BookId:
-    value: str
+class BookId(_ValueObject):
+    __slots__ = ("_value",)
 
-    def __post_init__(self):
-        _non_empty(self.value, "ID книги")
+    def __init__(self, value):
+        _non_empty(value, "ID книги")
+        self._value = value
 
-
-@dataclass(frozen=True)
-class ReaderId:
-    value: str
-
-    def __post_init__(self):
-        _non_empty(self.value, "ID читателя")
+    @property
+    def value(self):
+        return self._value
 
 
-@dataclass(frozen=True)
-class LoanId:
-    value: str
+class ReaderId(_ValueObject):
+    __slots__ = ("_value",)
 
-    def __post_init__(self):
-        _non_empty(self.value, "ID выдачи")
+    def __init__(self, value):
+        _non_empty(value, "ID читателя")
+        self._value = value
+
+    @property
+    def value(self):
+        return self._value
 
 
-@dataclass(frozen=True)
-class LoanPeriod:
-    issued_on: date
-    due_on: date
+class LoanId(_ValueObject):
+    __slots__ = ("_value",)
 
-    def __post_init__(self):
-        if type(self.issued_on) is not date or type(self.due_on) is not date:
+    def __init__(self, value):
+        _non_empty(value, "ID выдачи")
+        self._value = value
+
+    @property
+    def value(self):
+        return self._value
+
+
+class LoanPeriod(_ValueObject):
+    __slots__ = ("_issued_on", "_due_on")
+
+    def __init__(self, issued_on, due_on):
+        if type(issued_on) is not date or type(due_on) is not date:
             raise InvalidValueObject("Даты должны иметь тип date")
-        if self.due_on < self.issued_on:
+        if due_on < issued_on:
             raise InvalidValueObject("Срок возврата раньше даты выдачи")
+        self._issued_on = issued_on
+        self._due_on = due_on
+
+    @property
+    def issued_on(self):
+        return self._issued_on
+
+    @property
+    def due_on(self):
+        return self._due_on
 
 
-@dataclass(frozen=True)
-class Fine:
-    amount: Decimal
+class Fine(_ValueObject):
+    __slots__ = ("_amount",)
 
-    def __post_init__(self):
-        object.__setattr__(self, "amount", _non_negative_money(self.amount, "Штраф"))
+    def __init__(self, amount):
+        self._amount = _non_negative_money(amount, "Штраф")
+
+    @property
+    def amount(self):
+        return self._amount
 
 
-@dataclass(frozen=True)
-class FineRate:
-    amount_per_day: Decimal
+class FineRate(_ValueObject):
+    __slots__ = ("_amount_per_day",)
 
-    def __post_init__(self):
-        object.__setattr__(self, "amount_per_day",
-                           _non_negative_money(self.amount_per_day, "Ставка штрафа"))
+    def __init__(self, amount_per_day):
+        self._amount_per_day = _non_negative_money(amount_per_day, "Ставка штрафа")
+
+    @property
+    def amount_per_day(self):
+        return self._amount_per_day
 
 
 # Агрегат 1: Book — корень агрегата книги.
 class Book:
-    def __init__(self, book_id: BookId, title: str, total_copies: int,
-                 available_copies: int | None = None):
+    def __init__(self, book_id, title, total_copies, available_copies=None):
         available = total_copies if available_copies is None else available_copies
         if not isinstance(book_id, BookId) or not isinstance(title, str) or not title.strip():
             raise DomainInvariantViolation("У книги должны быть ID и название")
@@ -107,10 +153,13 @@ class Book:
 
     @property
     def id(self): return self._id
+
     @property
     def title(self): return self._title
+
     @property
     def total_copies(self): return self._total_copies
+
     @property
     def available_copies(self): return self._available_copies
 
@@ -132,11 +181,11 @@ class Book:
 
 # Агрегат 2: Loan — корень отдельной выдачи; Book хранится только по ID.
 class Loan:
-    def __init__(self, loan_id: LoanId, book_id: BookId, reader_id: ReaderId,
-                 period: LoanPeriod, returned_on: date | None = None,
-                 fine: Fine | None = None):
+    def __init__(self, loan_id, book_id, reader_id, period,
+                 returned_on=None, fine=None):
         if not all(isinstance(x, t) for x, t in (
-            (loan_id, LoanId), (book_id, BookId), (reader_id, ReaderId), (period, LoanPeriod)
+            (loan_id, LoanId), (book_id, BookId),
+            (reader_id, ReaderId), (period, LoanPeriod)
         )):
             raise DomainInvariantViolation("Некорректные данные выдачи")
         if returned_on is None:
@@ -156,16 +205,20 @@ class Loan:
 
     @property
     def id(self): return self._id
+
     @property
     def book_id(self): return self._book_id
+
     @property
     def reader_id(self): return self._reader_id
+
     @property
     def is_open(self): return self._returned_on is None
+
     @property
     def fine(self): return self._fine
 
-    def return_book(self, returned_on: date, rate: FineRate) -> Fine:
+    def return_book(self, returned_on, rate):
         if not self.is_open:
             raise DomainInvariantViolation("Выдача уже закрыта")
         if type(returned_on) is not date or returned_on < self._period.issued_on:
@@ -188,14 +241,14 @@ class Loan:
 # Фабрики восстановления повторно запускают проверки конструкторов.
 class BookFactory:
     @staticmethod
-    def restore(state: dict) -> Book:
+    def restore(state):
         return Book(BookId(state["id"]), state["title"],
                     state["total_copies"], state["available_copies"])
 
 
 class LoanFactory:
     @staticmethod
-    def restore(state: dict) -> Loan:
+    def restore(state):
         fine = Fine(state["fine"]) if state["fine"] is not None else None
         return Loan(LoanId(state["id"]), BookId(state["book_id"]),
                     ReaderId(state["reader_id"]),
@@ -205,47 +258,46 @@ class LoanFactory:
 
 # Репозитории описаны как порты Protocol.
 class BookRepository(Protocol):
-    def get(self, book_id: BookId) -> Book: ...
-    def save(self, book: Book) -> None: ...
+    def get(self, book_id): ...
+    def save(self, book): ...
 
 
 class LoanRepository(Protocol):
-    def get(self, loan_id: LoanId) -> Loan: ...
-    def save(self, loan: Loan) -> None: ...
+    def get(self, loan_id): ...
+    def save(self, loan): ...
 
 
 class InMemoryBookRepository:
     def __init__(self): self._data = {}
 
-    def get(self, book_id: BookId) -> Book:
+    def get(self, book_id):
         if book_id.value not in self._data:
             raise AggregateNotFound("Книга не найдена")
         return BookFactory.restore(self._data[book_id.value])
 
-    def save(self, book: Book) -> None:
+    def save(self, book):
         self._data[book.id.value] = book.to_state()
 
 
 class InMemoryLoanRepository:
     def __init__(self): self._data = {}
 
-    def get(self, loan_id: LoanId) -> Loan:
+    def get(self, loan_id):
         if loan_id.value not in self._data:
             raise AggregateNotFound("Выдача не найдена")
         return LoanFactory.restore(self._data[loan_id.value])
 
-    def save(self, loan: Loan) -> None:
+    def save(self, loan):
         self._data[loan.id.value] = loan.to_state()
 
 
 # Доменный сервис нужен, потому что выдача и возврат меняют Book и Loan.
 class LibraryService:
-    def __init__(self, books: BookRepository, loans: LoanRepository):
+    def __init__(self, books, loans):
         self._books = books
         self._loans = loans
 
-    def checkout(self, book_id: BookId, reader_id: ReaderId,
-                 loan_id: LoanId, period: LoanPeriod) -> Loan:
+    def checkout(self, book_id, reader_id, loan_id, period):
         book = self._books.get(book_id)
         loan = Loan(loan_id, book_id, reader_id, period)
         book.checkout_copy()
@@ -253,8 +305,7 @@ class LibraryService:
         self._loans.save(loan)
         return loan
 
-    def return_book(self, loan_id: LoanId, reader_id: ReaderId,
-                    returned_on: date, rate: FineRate) -> Fine:
+    def return_book(self, loan_id, reader_id, returned_on, rate):
         loan = self._loans.get(loan_id)
         if loan.reader_id != reader_id:
             raise DomainInvariantViolation("Выдача принадлежит другому читателю")
