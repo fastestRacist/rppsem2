@@ -1,0 +1,28 @@
+{
+  "version": "service_async_blocking",
+  "mode": "closed",
+  "clients": 1,
+  "rate": null,
+  "warmup_seconds": 10.0,
+  "measurement_seconds": 60.0,
+  "client_timeout_seconds": 30.0,
+  "search": {
+    "requests": 28,
+    "requests_per_second": 0.47,
+    "p50_ms": 1925.95,
+    "p95_ms": 3154.74,
+    "p99_ms": 3552.34,
+    "max_ms": 3552.34,
+    "errors_percent": 0.0
+  },
+  "health": {
+    "requests": 581,
+    "requests_per_second": 9.68,
+    "p50_ms": 1082.66,
+    "p95_ms": 2483.87,
+    "p99_ms": 3067.5,
+    "max_ms": 3496.96,
+    "errors_percent": 0.0
+  },
+  "percentile_method": "nearest-rank"
+}

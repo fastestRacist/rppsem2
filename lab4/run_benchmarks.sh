@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")"
+export PATH="$PWD/.venv/bin:$PATH"
+
 mkdir -p results
 
 wait_search() {

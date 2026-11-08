@@ -5,3 +5,4 @@ results/
 profiles/*.svg
 Отчет_ЛР4.docx
 Отчет_ЛР4.pdf
+.venv/
