@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+results/
+profiles/*.svg
+Отчет_ЛР4.docx
+Отчет_ЛР4.pdf

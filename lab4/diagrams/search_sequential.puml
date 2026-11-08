@@ -1,0 +1,60 @@
+@startuml
+actor Клиент
+participant "Сервис поиска" as Search
+database "PostgreSQL" as DB
+participant "Поставщик 1" as P1
+participant "Поставщик 2" as P2
+participant "Поставщик 3" as P3
+
+Клиент -> Search: GET /search(origin, destination, date)
+Search -> DB: SELECT рейсы за дату
+DB --> Search: собственные рейсы
+
+Search -> P1: GET /flights?date (дедлайн 2 с)
+alt Успешный ответ
+  P1 --> Search: рейсы
+else Ошибка 500 / сетевая ошибка
+  Search -> Search: sleep(200 мс), если срок не истёк
+  Search -> P1: повтор GET /flights?date (один раз)
+  alt Повтор успешен до дедлайна
+    P1 --> Search: рейсы
+  else Повтор завершился ошибкой / дедлайн истёк
+    P1 --> Search: нет ответа
+  end
+else Тайм-аут 2 с
+  P1 --> Search: нет ответа
+end
+
+Search -> P2: GET /flights?date (дедлайн 2 с)
+alt Успешный ответ
+  P2 --> Search: рейсы
+else Ошибка 500 / сетевая ошибка
+  Search -> Search: sleep(200 мс), если срок не истёк
+  Search -> P2: повтор GET /flights?date (один раз)
+  alt Повтор успешен до дедлайна
+    P2 --> Search: рейсы
+  else Повтор завершился ошибкой / дедлайн истёк
+    P2 --> Search: нет ответа
+  end
+else Тайм-аут 2 с
+  P2 --> Search: нет ответа
+end
+
+Search -> P3: GET /flights?date (дедлайн 2 с)
+alt Успешный ответ
+  P3 --> Search: рейсы
+else Ошибка 500 / сетевая ошибка
+  Search -> Search: sleep(200 мс), если срок не истёк
+  Search -> P3: повтор GET /flights?date (один раз)
+  alt Повтор успешен до дедлайна
+    P3 --> Search: рейсы
+  else Повтор завершился ошибкой / дедлайн истёк
+    P3 --> Search: нет ответа
+  end
+else Тайм-аут 2 с
+  P3 --> Search: нет ответа
+end
+
+Search -> Search: построение и сортировка маршрутов
+Search --> Клиент: до 20 маршрутов + неответившие поставщики + время
+@enduml

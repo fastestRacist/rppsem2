@@ -1,0 +1,110 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-flights}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-flights}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  provider1:
+    build: .
+    command: ["uvicorn", "provider_stub:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    environment:
+      PROVIDER_NAME: provider1
+      AVG_DELAY_MS: "300"
+      JITTER_FRACTION: "0.30"
+      ERROR_RATE: "0.05"
+      SLOW_RATE: "0"
+      SLOW_DELAY_MS: "3000"
+      FLIGHTS_PER_DAY: "500"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  provider2:
+    build: .
+    command: ["uvicorn", "provider_stub:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    environment:
+      PROVIDER_NAME: provider2
+      AVG_DELAY_MS: "500"
+      JITTER_FRACTION: "0.30"
+      ERROR_RATE: "0.05"
+      SLOW_RATE: "0"
+      SLOW_DELAY_MS: "3000"
+      FLIGHTS_PER_DAY: "500"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  provider3:
+    build: .
+    command: ["uvicorn", "provider_stub:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    environment:
+      PROVIDER_NAME: provider3
+      AVG_DELAY_MS: "800"
+      JITTER_FRACTION: "0.30"
+      ERROR_RATE: "0.05"
+      SLOW_RATE: "0.10"
+      SLOW_DELAY_MS: "3000"
+      FLIGHTS_PER_DAY: "500"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  seed:
+    build: .
+    command: ["python", "seed_db.py"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-flights}"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  search:
+    build: .
+    command: ["sh", "-c", "exec uvicorn ${APP_MODULE:-service_sync}:app --host 0.0.0.0 --port 8000 --workers 1"]
+    environment:
+      APP_MODULE: ${APP_MODULE:-service_sync}
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-flights}"
+      ASYNC_DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-flights}"
+      PROVIDER1_URL: http://provider1:8000
+      PROVIDER2_URL: http://provider2:8000
+      PROVIDER3_URL: http://provider3:8000
+    ports:
+      - "8000:8000"
+    cap_add:
+      - SYS_PTRACE
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      db:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      provider1:
+        condition: service_healthy
+      provider2:
+        condition: service_healthy
+      provider3:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

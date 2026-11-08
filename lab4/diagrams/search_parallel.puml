@@ -1,0 +1,30 @@
+@startuml
+actor Клиент
+participant "Сервис поиска" as Search
+database "PostgreSQL" as DB
+participant "Поставщик 1" as P1
+participant "Поставщик 2" as P2
+participant "Поставщик 3" as P3
+
+Клиент -> Search: GET /search(origin, destination, date)
+par Чтение собственной БД
+  Search -> DB: SELECT рейсы за дату
+  DB --> Search: собственные рейсы
+else Поставщик 1
+  Search -> P1: GET /flights?date (общий дедлайн 2 с)
+  P1 --> Search: рейсы / ошибка / тайм-аут
+else Поставщик 2
+  Search -> P2: GET /flights?date (общий дедлайн 2 с)
+  P2 --> Search: рейсы / ошибка / тайм-аут
+else Поставщик 3
+  Search -> P3: GET /flights?date (общий дедлайн 2 с)
+  P3 --> Search: рейсы / ошибка / тайм-аут
+end
+note over Search,P3
+При первой ошибке: пауза 200 мс и один повтор.
+Оба запроса входят в общий дедлайн 2 с.
+Ошибка одного поставщика не отменяет остальные.
+end note
+Search -> Search: построение и сортировка маршрутов
+Search --> Клиент: до 20 маршрутов + неответившие поставщики + время
+@enduml
