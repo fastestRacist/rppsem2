@@ -1,4 +1,4 @@
-"""Построение маршрутов без обращений к сети и базе данных."""
+"""Построение маршрутов без обращений к сети и базе данных (этап 4)."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -19,8 +19,14 @@ def _normalise(flight: dict) -> dict:
     return item
 
 
-def build_routes(flights: list[dict], origin: str, destination: str, flight_date: date, limit: int = 20) -> list[dict]:
-    """Возвращает до limit самых дешёвых маршрутов с 0, 1 или 2 пересадками."""
+def build_routes(
+    flights: list[dict],
+    origin: str,
+    destination: str,
+    flight_date: date,
+    limit: int = 20,
+) -> list[dict]:
+    """Строит маршруты, сортирует по категории и цене, возвращает первые limit."""
     if origin == destination:
         return []
 
@@ -35,8 +41,11 @@ def build_routes(flights: list[dict], origin: str, destination: str, flight_date
     found = []
 
     def add_route(legs: list[dict]):
+        transfers = len(legs) - 1
+        category = ("direct", "one_transfer", "two_transfers")[transfers]
         total = sum(leg["price"] for leg in legs)
         found.append({
+            "category": category,
             "flights": [
                 {
                     **leg,
@@ -47,7 +56,7 @@ def build_routes(flights: list[dict], origin: str, destination: str, flight_date
             ],
             "airports": [legs[0]["origin"]] + [leg["destination"] for leg in legs],
             "total_price": total,
-            "transfers": len(legs) - 1,
+            "transfers": transfers,
         })
 
     one_hour = 3600
@@ -79,5 +88,7 @@ def build_routes(flights: list[dict], origin: str, destination: str, flight_date
                 if third["destination"] == destination:
                     add_route([first, second, third])
 
-    found.sort(key=lambda route: (route["total_price"], route["transfers"], route["airports"]))
+    # Категории: прямой рейс, одна пересадка, две пересадки.
+    # Внутри категории маршруты упорядочиваются по стоимости.
+    found.sort(key=lambda route: (route["transfers"], route["total_price"], route["airports"]))
     return found[:limit]

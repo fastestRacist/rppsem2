@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 
 from flight_data import generate_flights, generate_own_period, OWN_FLIGHTS_PER_DAY, DAYS
 from route_builder import build_routes
+from service_async_io import build_routes as build_routes_in_app
 
 DAY = date(2026, 1, 1)
 
@@ -67,6 +68,30 @@ class FlightSearchTests(unittest.TestCase):
             flight("OTHER", "A01", "A02", "2026-01-02T12:00:00", 1, 100),
         ]
         self.assertEqual(build_routes(flights, "A00", "A02", DAY), [])
+
+    def test_routes_are_sorted_by_category_then_price(self):
+        flights = [
+            flight("DIRECT", "A00", "A03", "2026-01-01T08:00:00", 2, 9000),
+            flight("FIRST", "A00", "A01", "2026-01-01T06:00:00", 1, 100),
+            flight("SECOND", "A01", "A03", "2026-01-01T08:00:00", 1, 100),
+            flight("LEG1", "A00", "A02", "2026-01-01T05:00:00", 1, 50),
+            flight("LEG2", "A02", "A04", "2026-01-01T07:00:00", 1, 50),
+            flight("LEG3", "A04", "A03", "2026-01-01T09:00:00", 1, 50),
+        ]
+        routes = build_routes(flights, "A00", "A03", DAY)
+        self.assertEqual([route["category"] for route in routes], ["direct", "one_transfer", "two_transfers"])
+        self.assertEqual([route["total_price"] for route in routes], [9000, 200, 150])
+
+    def test_stage_three_app_contains_the_same_route_rules(self):
+        flights = [
+            flight("EXPENSIVE_DIRECT", "A00", "A02", "2026-01-01T08:00:00", 2, 9000),
+            flight("LEG1", "A00", "A01", "2026-01-01T06:00:00", 1, 100),
+            flight("LEG2", "A01", "A02", "2026-01-01T08:00:00", 1, 100),
+        ]
+        self.assertEqual(
+            build_routes_in_app(flights, "A00", "A02", DAY),
+            build_routes(flights, "A00", "A02", DAY),
+        )
 
     def test_returns_no_more_than_twenty_routes(self):
         flights = []

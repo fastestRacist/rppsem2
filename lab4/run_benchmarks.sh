@@ -17,7 +17,8 @@ raise SystemExit('search не стал healthy за 90 секунд')
 PY
 }
 
-for module in service_sync service_async_blocking service_async; do
+# Четыре этапа по уточнению преподавателя.
+for module in service_sync service_async_blocking service_async_io service_async; do
   echo "=== $module ==="
   APP_MODULE="$module" docker compose up -d --build --no-deps --force-recreate search
   wait_search
@@ -33,4 +34,4 @@ for module in service_sync service_async_blocking service_async; do
     > "results/${module}_open_5rps.json"
 done
 
-echo "Результаты сохранены в results/*.json"
+echo "Результаты 20 замеров сохранены в results/*.json"
